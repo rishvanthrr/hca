@@ -1,0 +1,62 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Backend Test
+      run: |
+        cd smart_attendance_system/backend
+        pip install -r requirements.txt
+        pip install pytest
+        pytest -v
+    
+    - name: Frontend Build
+      run: |
+        cd smart_attendance_system/frontend
+        npm ci
+        npm run build
+        npm test
+
+  build-push:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Build and Push Backend
+      run: |
+        cd smart_attendance_system
+        docker build -t yourusername/attendance-backend:latest ./backend
+        docker push yourusername/attendance-backend:latest
+        
+    - name: Build and Push Frontend
+      run: |
+        cd smart_attendance_system
+        docker build -t yourusername/attendance-frontend:latest ./frontend
+        docker push yourusername/attendance-frontend:latest
+
+  deploy-dev:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy to Dev K8s
+      run: |
+        # kubectl apply -f k8s/
+        echo "Deployed to dev cluster"
+
